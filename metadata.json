@@ -1,0 +1,6 @@
+{
+  "name": "Smart Resume Guide",
+  "description": "Professional career development companion featuring AI career roadmaps, smart resume builder, networking, mentorship, and admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
