@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bell, Sparkles, User as UserIcon, Shield, Search } from 'lucide-react';
 import { User, StudentProfile } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderProps {
   user: User;
@@ -35,6 +36,8 @@ export const Header: React.FC<HeaderProps> = ({ user, profile, currentView, onNa
       </div>
 
       <div className="flex items-center gap-4">
+        <PWAInstallButton />
+
         {user.plan === 'Free' && (
           <button
             onClick={() => onNavigate('mentorship')}
