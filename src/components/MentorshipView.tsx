@@ -4,6 +4,7 @@ import {
   Award, Briefcase, ArrowRight, Check 
 } from 'lucide-react';
 import { User, Mentor, MentorSession } from '../types';
+import { dbService } from '../services/db';
 import confetti from 'canvas-confetti';
 
 interface MentorshipViewProps {
@@ -17,68 +18,34 @@ export const MentorshipView: React.FC<MentorshipViewProps> = ({ user, onUpdatePl
   const [selectedMentor, setSelectedMentor] = useState<Mentor | null>(null);
   const [sessionDate, setSessionDate] = useState('');
   const [sessionNotes, setSessionNotes] = useState('');
-  const [loading, setLoading] = useState(true);
 
   const fetchData = () => {
-    Promise.all([
-      fetch('/api/mentors').then(res => res.json()),
-      fetch(`/api/mentor-sessions/${user.id}`).then(res => res.json())
-    ]).then(([mentorsData, sessionsData]) => {
-      setMentors(mentorsData || []);
-      setSessions(sessionsData || []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    setMentors(dbService.getMentors());
+    setSessions(dbService.getMentorSessions(user.id));
   };
 
   useEffect(() => {
     fetchData();
   }, [user.id]);
 
-  const handleBookSession = async (e: React.FormEvent) => {
+  const handleBookSession = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMentor || !sessionDate) return;
 
-    try {
-      const res = await fetch('/api/mentors/book', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.id,
-          mentor_id: selectedMentor.id,
-          scheduled_at: sessionDate,
-          notes: sessionNotes
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-        alert('Mentorship session booked successfully!');
-        setSelectedMentor(null);
-        setSessionDate('');
-        setSessionNotes('');
-        fetchData();
-      }
-    } catch (err) {
-      alert('Failed to book session.');
-    }
+    dbService.bookMentorSession(user.id, selectedMentor.id, sessionDate, sessionNotes);
+    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+    alert('Mentorship session booked successfully!');
+    setSelectedMentor(null);
+    setSessionDate('');
+    setSessionNotes('');
+    fetchData();
   };
 
-  const handleUpgrade = async (planName: string, amount: string) => {
-    try {
-      const res = await fetch('/api/subscriptions/upgrade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id, plan_name: planName, amount }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        onUpdatePlan(planName);
-        confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } });
-        alert(`Successfully upgraded to ${planName}!`);
-      }
-    } catch (err) {
-      alert('Subscription upgrade failed.');
-    }
+  const handleUpgrade = (planName: string) => {
+    dbService.upgradePlan(user.id, planName);
+    onUpdatePlan(planName);
+    confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } });
+    alert(`Successfully upgraded to ${planName}!`);
   };
 
   return (
@@ -98,7 +65,6 @@ export const MentorshipView: React.FC<MentorshipViewProps> = ({ user, onUpdatePl
         </div>
       </div>
 
-      {/* Subscription Plans */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow flex flex-col justify-between">
           <div>
@@ -131,7 +97,7 @@ export const MentorshipView: React.FC<MentorshipViewProps> = ({ user, onUpdatePl
             </ul>
           </div>
           <button
-            onClick={() => handleUpgrade('Basic Mentorship', '$29/mo')}
+            onClick={() => handleUpgrade('Basic Mentorship')}
             className="mt-8 w-full py-2.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold rounded-xl shadow transition"
           >
             Upgrade to Basic
@@ -153,7 +119,7 @@ export const MentorshipView: React.FC<MentorshipViewProps> = ({ user, onUpdatePl
             </ul>
           </div>
           <button
-            onClick={() => handleUpgrade('Personal Mentorship', '$59/mo')}
+            onClick={() => handleUpgrade('Personal Mentorship')}
             className="mt-8 w-full py-2.5 bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-xl shadow transition"
           >
             Upgrade to Personal
@@ -161,7 +127,6 @@ export const MentorshipView: React.FC<MentorshipViewProps> = ({ user, onUpdatePl
         </div>
       </div>
 
-      {/* Mentors Directory */}
       <div className="space-y-6">
         <h3 className="text-base font-bold text-white">Verified Industry Mentors</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -198,7 +163,6 @@ export const MentorshipView: React.FC<MentorshipViewProps> = ({ user, onUpdatePl
         </div>
       </div>
 
-      {/* Booking Modal */}
       {selectedMentor && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6">

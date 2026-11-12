@@ -4,6 +4,7 @@ import {
   ArrowRight, CheckCircle2, Clock, Briefcase, ChevronRight 
 } from 'lucide-react';
 import { User, StudentProfile, CareerRoadmap, Announcement } from '../types';
+import { dbService } from '../services/db';
 
 interface DashboardViewProps {
   user: User;
@@ -14,17 +15,12 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({ user, profile, onNavigate }) => {
   const [roadmaps, setRoadmaps] = useState<CareerRoadmap[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/roadmap/${user.id}`).then(res => res.json()),
-      fetch(`/api/notifications/${user.id}`).then(res => res.json())
-    ]).then(([roadmapsData, notifsData]) => {
-      setRoadmaps(roadmapsData || []);
-      setAnnouncements(notifsData.announcements || []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    const roadmapsData = dbService.getRoadmaps(user.id);
+    const notifsData = dbService.getNotifications(user.id);
+    setRoadmaps(roadmapsData || []);
+    setAnnouncements(notifsData.announcements || []);
   }, [user.id]);
 
   const latestRoadmap = roadmaps[0];
@@ -115,7 +111,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ user, profile, onN
 
       {/* Main Content Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Roadmap Preview / Prompt */}
         <div className="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -163,7 +158,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ user, profile, onN
           )}
         </div>
 
-        {/* Announcements & Quick Shortcuts */}
         <div className="space-y-6">
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow">
             <h3 className="text-sm font-bold text-white mb-4">Platform Announcements</h3>

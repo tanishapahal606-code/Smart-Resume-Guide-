@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Briefcase, Mail, Phone, Lock, User, ArrowRight, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Briefcase, Mail, Phone, Lock, User as UserIcon, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { dbService, initDB } from '../services/db';
 
 interface AuthScreenProps {
   onLogin: (user: any, profile: any) => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
+  initDB();
   const [isLogin, setIsLogin] = useState(true);
   const [tab, setTab] = useState<'email' | 'mobile'>('email');
   const [identifier, setIdentifier] = useState('');
@@ -16,72 +18,95 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // OTP state for mobile login simulation
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    try {
+    setTimeout(() => {
+      const users = dbService.getUsers();
+      const profiles = dbService.getProfiles();
+
       if (isLogin) {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier, password }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          onLogin(data.user, data.profile);
+        const foundUser = users.find(u => u.email === identifier || u.mobile === identifier);
+        if (foundUser && foundUser.password === password) {
+          const foundProfile = profiles.find(p => p.user_id === foundUser.id) || null;
+          onLogin(foundUser, foundProfile);
         } else {
-          setError(data.error || 'Login failed');
+          setError('Invalid email/mobile or password. Try demo buttons below.');
         }
       } else {
-        const res = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email || `${mobile}@mobile.user`, mobile: mobile || identifier, password, name, role: 'student' }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          onLogin(data.user, data.profile);
+        const existing = users.find(u => u.email === email || u.mobile === mobile);
+        if (existing) {
+          setError('User with this email or mobile already exists.');
         } else {
-          setError(data.error || 'Registration failed');
+          const newUserId = Date.now();
+          const newUser = {
+            id: newUserId,
+            email: email || `${mobile}@mobile.user`,
+            mobile: mobile || identifier,
+            password,
+            name,
+            role: 'student' as const,
+            plan: 'Free' as const,
+            created_at: new Date().toISOString()
+          };
+          users.push(newUser);
+          dbService.saveUsers(users);
+
+          const newProfile = {
+            id: Date.now(),
+            user_id: newUserId,
+            full_name: name,
+            institute: 'Unassigned College',
+            current_education: 'Undergraduate',
+            degree: 'B.Sc. Computer Science',
+            year_semester: 'Year 1 / Sem 1',
+            skills: 'Problem Solving, Communication',
+            interests: 'Technology, Software Engineering',
+            career_goal: 'Software Engineer',
+            aim_ambition: 'Build impactful applications.',
+            linkedin: '',
+            github: '',
+            updated_at: new Date().toISOString()
+          };
+          profiles.push(newProfile);
+          dbService.saveProfiles(profiles);
+
+          // Add networking profile
+          const networkingUsers = JSON.parse(localStorage.getItem('srg_networking_users') || '[]');
+          networkingUsers.push({
+            id: Date.now(),
+            user_id: newUserId,
+            name,
+            career_goal: 'Software Engineer',
+            skills: 'Problem Solving',
+            institute: 'Unassigned College',
+            bio: 'Ready to build the future.',
+            public_visibility: 1,
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+          });
+          localStorage.setItem('srg_networking_users', JSON.stringify(networkingUsers));
+
+          onLogin(newUser, newProfile);
         }
       }
-    } catch (err: any) {
-      setError('Connection error. Please try again.');
-    } finally {
       setLoading(false);
-    }
+    }, 400);
   };
 
-  const handleDemoLogin = async (type: 'student' | 'admin') => {
-    setLoading(true);
-    const id = type === 'admin' ? 'admin@smartresumeguide.com' : 'student@example.com';
-    const pwd = type === 'admin' ? 'admin123' : 'password123';
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: id, password: pwd }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        onLogin(data.user, data.profile);
-      }
-    } catch (err) {
-      setError('Demo login failed');
-    } finally {
-      setLoading(false);
+  const handleDemoLogin = (type: 'student' | 'admin') => {
+    const users = dbService.getUsers();
+    const profiles = dbService.getProfiles();
+    const foundUser = users.find(u => type === 'admin' ? u.role === 'admin' : u.role === 'student');
+    if (foundUser) {
+      const foundProfile = profiles.find(p => p.user_id === foundUser.id) || null;
+      onLogin(foundUser, foundProfile);
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background ambient glowing gradients */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -125,35 +150,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
           </button>
         </div>
 
-        {isLogin && (
-          <div className="flex gap-2 mb-6">
-            <button
-              type="button"
-              onClick={() => setTab('email')}
-              className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${
-                tab === 'email' ? 'border-teal-500/50 bg-teal-500/10 text-teal-300' : 'border-slate-800 text-slate-400'
-              }`}
-            >
-              Email Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('mobile')}
-              className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${
-                tab === 'mobile' ? 'border-teal-500/50 bg-teal-500/10 text-teal-300' : 'border-slate-800 text-slate-400'
-              }`}
-            >
-              Mobile + OTP
-            </button>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Full Name</label>
               <div className="relative">
-                <User className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
+                <UserIcon className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
                 <input
                   type="text"
                   required
@@ -166,34 +168,32 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
             </div>
           )}
 
-          {tab === 'email' || !isLogin ? (
+          {!isLogin ? (
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">
-                {isLogin ? 'Email or Mobile Number' : 'Email Address'}
-              </label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
                 <input
-                  type={isLogin ? 'text' : 'email'}
+                  type="email"
                   required
-                  value={isLogin ? identifier : email}
-                  onChange={(e) => isLogin ? setIdentifier(e.target.value) : setEmail(e.target.value)}
-                  placeholder={isLogin ? 'student@example.com or mobile' : 'student@example.com'}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="student@example.com"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500"
                 />
               </div>
             </div>
           ) : (
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Mobile Number</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Email or Mobile Number</label>
               <div className="relative">
-                <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
+                <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
                 <input
-                  type="tel"
+                  type="text"
                   required
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  placeholder="9876543210"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="student@example.com"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500"
                 />
               </div>

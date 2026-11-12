@@ -2,6 +2,7 @@ export interface User {
   id: number;
   email: string;
   mobile: string;
+  password?: string;
   name: string;
   role: 'student' | 'admin';
   plan: 'Free' | 'Basic Mentorship' | 'Personal Mentorship';

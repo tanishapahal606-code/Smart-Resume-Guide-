@@ -4,6 +4,7 @@ import {
   Send, Sparkles, Building, Briefcase, Award 
 } from 'lucide-react';
 import { User, StudentProfile, NetworkingUser, Connection, Message } from '../types';
+import { dbService } from '../services/db';
 
 interface NetworkingViewProps {
   user: User;
@@ -17,17 +18,11 @@ export const NetworkingView: React.FC<NetworkingViewProps> = ({ user, profile })
   const [activeChatPeer, setActiveChatPeer] = useState<NetworkingUser | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
 
   const fetchNetworkingData = () => {
-    fetch(`/api/networking/users/${user.id}`)
-      .then(res => res.json())
-      .then(data => {
-        setPeers(data.users || []);
-        setConnections(data.connections || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const data = dbService.getNetworkingUsers(user.id);
+    setPeers(data.users || []);
+    setConnections(data.connections || []);
   };
 
   useEffect(() => {
@@ -36,42 +31,24 @@ export const NetworkingView: React.FC<NetworkingViewProps> = ({ user, profile })
 
   useEffect(() => {
     if (activeChatPeer) {
-      fetch(`/api/networking/messages/${user.id}/${activeChatPeer.user_id}`)
-        .then(res => res.json())
-        .then(data => setMessages(data || []));
+      const msgs = dbService.getMessages(user.id, activeChatPeer.user_id);
+      setMessages(msgs || []);
     }
   }, [activeChatPeer, user.id]);
 
-  const handleConnect = async (receiverId: number) => {
-    try {
-      await fetch('/api/networking/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender_id: user.id, receiver_id: receiverId }),
-      });
-      fetchNetworkingData();
-    } catch (err) {
-      alert('Failed to send connection request.');
-    }
+  const handleConnect = (receiverId: number) => {
+    dbService.sendConnectionRequest(user.id, receiverId);
+    fetchNetworkingData();
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeChatPeer) return;
 
-    try {
-      await fetch('/api/networking/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender_id: user.id, receiver_id: activeChatPeer.user_id, content: newMessage }),
-      });
-      setNewMessage('');
-      const res = await fetch(`/api/networking/messages/${user.id}/${activeChatPeer.user_id}`);
-      const data = await res.json();
-      setMessages(data || []);
-    } catch (err) {
-      alert('Failed to send message.');
-    }
+    dbService.sendMessage(user.id, activeChatPeer.user_id, newMessage);
+    setNewMessage('');
+    const msgs = dbService.getMessages(user.id, activeChatPeer.user_id);
+    setMessages(msgs || []);
   };
 
   const filteredPeers = peers.filter(p => 
@@ -108,7 +85,6 @@ export const NetworkingView: React.FC<NetworkingViewProps> = ({ user, profile })
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Peers List */}
         <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredPeers.map((peer) => {
             const existingConn = connections.find(c => 
@@ -171,7 +147,6 @@ export const NetworkingView: React.FC<NetworkingViewProps> = ({ user, profile })
           })}
         </div>
 
-        {/* Active Chat Section */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow flex flex-col h-[550px]">
           {activeChatPeer ? (
             <>

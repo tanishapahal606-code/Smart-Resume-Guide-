@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, CheckCircle2, Megaphone, Sparkles } from 'lucide-react';
 import { User, NotificationItem, Announcement } from '../types';
+import { dbService } from '../services/db';
 
 interface NotificationsViewProps {
   user: User;
@@ -9,28 +10,20 @@ interface NotificationsViewProps {
 export const NotificationsView: React.FC<NotificationsViewProps> = ({ user }) => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const fetchNotifs = () => {
-    fetch(`/api/notifications/${user.id}`)
-      .then(res => res.json())
-      .then(data => {
-        setNotifications(data.notifications || []);
-        setAnnouncements(data.announcements || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const data = dbService.getNotifications(user.id);
+    setNotifications(data.notifications || []);
+    setAnnouncements(data.announcements || []);
   };
 
   useEffect(() => {
     fetchNotifs();
   }, [user.id]);
 
-  const markAsRead = async (id: number) => {
-    try {
-      await fetch(`/api/notifications/read/${id}`, { method: 'POST' });
-      fetchNotifs();
-    } catch (err) {}
+  const markAsRead = (id: number) => {
+    dbService.markNotificationRead(id);
+    fetchNotifs();
   };
 
   return (

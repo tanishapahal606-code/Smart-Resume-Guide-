@@ -4,6 +4,7 @@ import {
   Award, Briefcase, Code, Wrench, Shield, CheckSquare 
 } from 'lucide-react';
 import { User, StudentProfile, CareerRoadmap } from '../types';
+import { dbService, generateAICareerRoadmap } from '../services/db';
 
 interface CareerRoadmapViewProps {
   user: User;
@@ -17,13 +18,9 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ user, prof
   const [customGoal, setCustomGoal] = useState(profile?.career_goal || 'Full Stack AI Engineer');
 
   const fetchRoadmaps = () => {
-    fetch(`/api/roadmap/${user.id}`)
-      .then(res => res.json())
-      .then(data => {
-        setRoadmaps(data || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const data = dbService.getRoadmaps(user.id);
+    setRoadmaps(data || []);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -33,21 +30,14 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ user, prof
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const res = await fetch('/api/roadmap/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          careerGoal: customGoal,
-          skills: profile?.skills || 'Python, React, JavaScript',
-          education: `${profile?.current_education || 'Undergraduate'} in ${profile?.degree || 'Computer Science'}`,
-          experience: profile?.aim_ambition || ''
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchRoadmaps();
-      }
+      await generateAICareerRoadmap(
+        user.id,
+        customGoal,
+        profile?.skills || 'Python, React, JavaScript',
+        `${profile?.current_education || 'Undergraduate'} in ${profile?.degree || 'Computer Science'}`,
+        profile?.aim_ambition || ''
+      );
+      fetchRoadmaps();
     } catch (err) {
       alert('Failed to generate roadmap.');
     } finally {
@@ -75,7 +65,6 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ user, prof
 
   return (
     <div className="p-8 space-y-8 overflow-y-auto max-h-[calc(100vh-4rem)]">
-      {/* Header & Generator Trigger */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-semibold mb-2">
@@ -108,13 +97,11 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ user, prof
         <div className="text-center py-16 text-slate-400 text-sm">Loading your personalized career roadmap...</div>
       ) : activeRoadmap ? (
         <div className="space-y-8">
-          {/* Career Overview */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow">
             <h3 className="text-sm font-bold text-teal-400 uppercase tracking-wider mb-2">Career Overview</h3>
             <p className="text-sm text-slate-300 leading-relaxed">{activeRoadmap.overview}</p>
           </div>
 
-          {/* Learning Roadmap Stages */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow space-y-6">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Map className="w-5 h-5 text-teal-400" />
@@ -129,7 +116,7 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ user, prof
                       Stage {idx + 1}: {stage.replace('_', ' ')}
                     </span>
                     <ul className="mt-4 space-y-2.5">
-                      {learningRoadmap[stage]?.map((item: string, i: number) => (
+                      {Array.isArray(learningRoadmap[stage]) && learningRoadmap[stage]?.map((item: string, i: number) => (
                         <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
                           <CheckCircle2 className="w-4 h-4 text-teal-500 shrink-0 mt-0.5" />
                           <span>{item}</span>
@@ -142,7 +129,6 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ user, prof
             </div>
           </div>
 
-          {/* Additional Skills & Certifications */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow space-y-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -171,7 +157,7 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ user, prof
                 <span>Recommended Certifications</span>
               </h3>
               <div className="space-y-3">
-                {certifications.map((cert: any, idx: number) => (
+                {Array.isArray(certifications) && certifications.map((cert: any, idx: number) => (
                   <div key={idx} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-bold text-white">{cert.name}</p>
@@ -188,29 +174,6 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ user, prof
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-
-          {/* Practical Experience & Projects */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow space-y-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Briefcase className="w-5 h-5 text-teal-400" />
-              <span>Practical Experience & Project Portfolio</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {['beginner_projects', 'intermediate_projects', 'advanced_projects'].map((projKey) => (
-                <div key={projKey} className="p-4 bg-slate-950 rounded-xl border border-slate-800">
-                  <p className="text-xs font-bold text-teal-400 uppercase tracking-wider mb-2">{projKey.replace('_', ' ')}</p>
-                  <ul className="space-y-2">
-                    {practicalExp[projKey]?.map((p: string, i: number) => (
-                      <li key={i} className="text-xs text-slate-300 flex items-center gap-2">
-                        <CheckSquare className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                        <span>{p}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
             </div>
           </div>
         </div>

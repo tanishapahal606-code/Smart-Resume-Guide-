@@ -4,6 +4,7 @@ import {
   Map, Sparkles, CheckSquare 
 } from 'lucide-react';
 import { User, StudentProfile, CareerRoadmap, SkillCertItem, MentorSession } from '../types';
+import { dbService } from '../services/db';
 
 interface ProgressViewProps {
   user: User;
@@ -14,19 +15,11 @@ export const ProgressView: React.FC<ProgressViewProps> = ({ user, profile }) => 
   const [roadmaps, setRoadmaps] = useState<CareerRoadmap[]>([]);
   const [skillsCerts, setSkillsCerts] = useState<SkillCertItem[]>([]);
   const [sessions, setSessions] = useState<MentorSession[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/roadmap/${user.id}`).then(res => res.json()),
-      fetch(`/api/skills-certs/${user.id}`).then(res => res.json()),
-      fetch(`/api/mentor-sessions/${user.id}`).then(res => res.json())
-    ]).then(([roadmapsData, skillsData, sessionsData]) => {
-      setRoadmaps(roadmapsData || []);
-      setSkillsCerts(skillsData || []);
-      setSessions(sessionsData || []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    setRoadmaps(dbService.getRoadmaps(user.id) || []);
+    setSkillsCerts(dbService.getSkillsCerts(user.id) || []);
+    setSessions(dbService.getMentorSessions(user.id) || []);
   }, [user.id]);
 
   const completedSkillsCerts = skillsCerts.filter(i => i.status === 'completed');
@@ -44,7 +37,6 @@ export const ProgressView: React.FC<ProgressViewProps> = ({ user, profile }) => 
         </div>
       </div>
 
-      {/* Progress Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow">
           <div className="flex items-center justify-between mb-3">
@@ -83,7 +75,6 @@ export const ProgressView: React.FC<ProgressViewProps> = ({ user, profile }) => 
         </div>
       </div>
 
-      {/* Completed Milestones List */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow space-y-6">
         <h3 className="text-base font-bold text-white">Acquired Skills & Completed Certifications</h3>
         

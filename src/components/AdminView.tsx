@@ -4,63 +4,44 @@ import {
   XCircle, Send, Sparkles, DollarSign 
 } from 'lucide-react';
 import { User } from '../types';
+import { dbService } from '../services/db';
 
 interface AdminViewProps {
   user: User;
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ user }) => {
-  const [data, setData] = useState<{ users: any[], mentors: any[], subscriptions: any[], announcements: any[] }>({
-    users: [], mentors: [], subscriptions: [], announcements: []
-  });
-  const [loading, setLoading] = useState(true);
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [mentorsList, setMentorsList] = useState<any[]>([]);
+  const [announcementsList, setAnnouncementsList] = useState<any[]>([]);
   const [annTitle, setAnnTitle] = useState('');
   const [annContent, setAnnContent] = useState('');
 
   const fetchAdminData = () => {
-    fetch('/api/admin/data')
-      .then(res => res.json())
-      .then(resData => {
-        setData(resData || { users: [], mentors: [], subscriptions: [], announcements: [] });
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    setUsersList(dbService.getUsers());
+    setMentorsList(dbService.getMentors());
+    const notifs = dbService.getNotifications(user.id);
+    setAnnouncementsList(notifs.announcements || []);
   };
 
   useEffect(() => {
     fetchAdminData();
-  }, []);
+  }, [user.id]);
 
-  const handleVerifyMentor = async (mentorId: number, currentVerified: number) => {
-    try {
-      await fetch(`/api/admin/verify-mentor/${mentorId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verified: currentVerified === 1 ? 0 : 1 }),
-      });
-      fetchAdminData();
-    } catch (err) {
-      alert('Failed to update mentor verification.');
-    }
+  const handleVerifyMentor = (mentorId: number, currentVerified: number) => {
+    dbService.verifyMentor(mentorId, currentVerified === 1 ? 0 : 1);
+    fetchAdminData();
   };
 
-  const handleCreateAnnouncement = async (e: React.FormEvent) => {
+  const handleCreateAnnouncement = (e: React.FormEvent) => {
     e.preventDefault();
     if (!annTitle.trim() || !annContent.trim()) return;
 
-    try {
-      await fetch('/api/admin/announcement', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: annTitle, content: annContent, type: 'info' }),
-      });
-      setAnnTitle('');
-      setAnnContent('');
-      fetchAdminData();
-      alert('Announcement broadcasted successfully!');
-    } catch (err) {
-      alert('Failed to broadcast announcement.');
-    }
+    dbService.addAnnouncement(annTitle, annContent, 'info');
+    setAnnTitle('');
+    setAnnContent('');
+    fetchAdminData();
+    alert('Announcement broadcasted successfully!');
   };
 
   return (
@@ -76,7 +57,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         </div>
       </div>
 
-      {/* Broadcast Announcement */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow space-y-4">
         <h3 className="text-base font-bold text-white flex items-center gap-2">
           <Megaphone className="w-4 h-4 text-teal-400" />
@@ -118,11 +98,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         </form>
       </div>
 
-      {/* Registered Users Table */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow space-y-4">
         <h3 className="text-base font-bold text-white flex items-center gap-2">
           <Users className="w-4 h-4 text-indigo-400" />
-          <span>Registered Users ({data.users.length})</span>
+          <span>Registered Users ({usersList.length})</span>
         </h3>
 
         <div className="overflow-x-auto">
@@ -137,7 +116,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ user }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {data.users.map((u: any) => (
+              {usersList.map((u: any) => (
                 <tr key={u.id}>
                   <td className="py-3 font-bold text-white">{u.name}</td>
                   <td className="py-3 text-slate-400">{u.email}</td>
@@ -151,11 +130,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         </div>
       </div>
 
-      {/* Mentors Verification Table */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow space-y-4">
         <h3 className="text-base font-bold text-white flex items-center gap-2">
           <Award className="w-4 h-4 text-purple-400" />
-          <span>Manage & Verify Mentors ({data.mentors.length})</span>
+          <span>Manage & Verify Mentors ({mentorsList.length})</span>
         </h3>
 
         <div className="overflow-x-auto">
@@ -170,7 +148,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ user }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {data.mentors.map((m: any) => (
+              {mentorsList.map((m: any) => (
                 <tr key={m.id}>
                   <td className="py-3 font-bold text-white flex items-center gap-2">
                     <img src={m.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />

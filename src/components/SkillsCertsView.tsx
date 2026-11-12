@@ -4,6 +4,7 @@ import {
   CheckSquare, Square, Plus, ShieldCheck 
 } from 'lucide-react';
 import { User, SkillCertItem } from '../types';
+import { dbService } from '../services/db';
 
 interface SkillsCertsViewProps {
   user: User;
@@ -11,42 +12,28 @@ interface SkillsCertsViewProps {
 
 export const SkillsCertsView: React.FC<SkillsCertsViewProps> = ({ user }) => {
   const [items, setItems] = useState<SkillCertItem[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const fetchItems = () => {
-    fetch(`/api/skills-certs/${user.id}`)
-      .then(res => res.json())
-      .then(data => {
-        setItems(data || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const data = dbService.getSkillsCerts(user.id);
+    setItems(data || []);
   };
 
   useEffect(() => {
     fetchItems();
   }, [user.id]);
 
-  const toggleStatus = async (item: SkillCertItem) => {
+  const toggleStatus = (item: SkillCertItem) => {
     const nextStatus = item.status === 'completed' ? 'pending' : 'completed';
-    try {
-      await fetch('/api/skills-certs/toggle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: item.id, status: nextStatus }),
-      });
-      fetchItems();
-    } catch (err) {
-      alert('Failed to update status.');
-    }
+    dbService.toggleSkillCert(item.id, nextStatus);
+    fetchItems();
   };
 
   const defaultRecommendations = [
-    { name: 'Python for Data Structures & Algorithms', type: 'skill', category: 'Technical', provider: 'Coursera / Stanford', link: 'https://coursera.org' },
-    { name: 'React 19 & TypeScript Masterclass', type: 'skill', category: 'Frontend', provider: 'Frontend Masters', link: 'https://frontendmasters.com' },
-    { name: 'AWS Certified Solutions Architect Associate', type: 'cert', category: 'Cloud Computing', provider: 'Amazon Web Services', link: 'https://aws.amazon.com/certification' },
-    { name: 'Google Professional Machine Learning Engineer', type: 'cert', category: 'Artificial Intelligence', provider: 'Google Cloud', link: 'https://cloud.google.com/certification' },
-    { name: 'Effective Leadership & Communication', type: 'skill', category: 'Soft Skills', provider: 'LinkedIn Learning', link: 'https://linkedin.com/learning' }
+    { name: 'Python for Data Structures & Algorithms', type: 'skill' as const, category: 'Technical', provider: 'Coursera / Stanford', link: 'https://coursera.org' },
+    { name: 'React 19 & TypeScript Masterclass', type: 'skill' as const, category: 'Frontend', provider: 'Frontend Masters', link: 'https://frontendmasters.com' },
+    { name: 'AWS Certified Solutions Architect Associate', type: 'cert' as const, category: 'Cloud Computing', provider: 'Amazon Web Services', link: 'https://aws.amazon.com/certification' },
+    { name: 'Google Professional Machine Learning Engineer', type: 'cert' as const, category: 'Artificial Intelligence', provider: 'Google Cloud', link: 'https://cloud.google.com/certification' },
+    { name: 'Effective Leadership & Communication', type: 'skill' as const, category: 'Soft Skills', provider: 'LinkedIn Learning', link: 'https://linkedin.com/learning' }
   ];
 
   return (
@@ -68,26 +55,22 @@ export const SkillsCertsView: React.FC<SkillsCertsViewProps> = ({ user }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {defaultRecommendations.map((rec, idx) => {
-          const isCompleted = items.some(i => i.name === rec.name && i.status === 'completed');
           const matchedItem = items.find(i => i.name === rec.name);
+          const isCompleted = matchedItem?.status === 'completed';
 
-          const handleClick = async () => {
+          const handleClick = () => {
             if (matchedItem) {
               toggleStatus(matchedItem);
             } else {
-              await fetch('/api/skills-certs/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  user_id: user.id,
-                  item_type: rec.type,
-                  name: rec.name,
-                  category: rec.category,
-                  provider: rec.provider,
-                  link: rec.link,
-                  status: 'completed',
-                  notes: 'Completed via platform recommendation'
-                }),
+              dbService.saveSkillCert({
+                user_id: user.id,
+                item_type: rec.type,
+                name: rec.name,
+                category: rec.category,
+                provider: rec.provider,
+                link: rec.link,
+                status: 'completed',
+                notes: 'Completed via platform recommendation'
               });
               fetchItems();
             }

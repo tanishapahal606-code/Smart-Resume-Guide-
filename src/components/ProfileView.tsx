@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User as UserIcon, Building, GraduationCap, Award, BookOpen, Target, Sparkles, CheckCircle2 } from 'lucide-react';
 import { User, StudentProfile } from '../types';
+import { dbService } from '../services/db';
 
 interface ProfileViewProps {
   user: User;
@@ -30,27 +31,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ user, profile, onUpdat
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSuccessMessage('');
 
-    try {
-      const res = await fetch('/api/profile/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, ...formData }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        onUpdateProfile({ ...profile!, ...formData });
-        setSuccessMessage('Student profile updated successfully!');
-      }
-    } catch (err) {
-      alert('Failed to update profile.');
-    } finally {
+    setTimeout(() => {
+      const profiles = dbService.getProfiles();
+      const updatedProfiles = profiles.map(p => p.user_id === user.id ? { ...p, ...formData, updated_at: new Date().toISOString() } : p);
+      dbService.saveProfiles(updatedProfiles);
+
+      const users = dbService.getUsers();
+      const updatedUsers = users.map(u => u.id === user.id ? { ...u, name: formData.full_name } : u);
+      dbService.saveUsers(updatedUsers);
+
+      onUpdateProfile({ ...profile!, ...formData });
+      setSuccessMessage('Student profile updated successfully!');
       setSaving(false);
-    }
+    }, 400);
   };
 
   return (
